@@ -3,7 +3,7 @@ import { body } from 'express-validator';
 import * as questionPaperService from '../services/questionPaperService';
 import { validate } from '../middleware/validation';
 import { authenticate } from '../middleware/auth';
-import { requireRoles } from '../services/rbacService';
+import { requireAdmin } from '../services/rbacService';
 import asyncHandler from '../utils/asyncHandler';
 
 const router = Router();
