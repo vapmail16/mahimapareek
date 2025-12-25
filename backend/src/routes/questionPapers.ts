@@ -56,7 +56,7 @@ router.get(
 
 /**
  * POST /api/question-papers
- * Create new question paper (Educator only)
+ * Create new question paper (Admin only)
  */
 router.post(
   '/',
@@ -66,8 +66,8 @@ router.post(
     body('totalMarks').isInt({ min: 1 }).withMessage('Total marks must be a positive integer'),
   ]),
   asyncHandler(async (req, res) => {
-    // Check if user is educator
-    await requireRoles(req.user!.id, ['EDUCATOR', 'ADMIN', 'SUPER_ADMIN']);
+    // Check if user is admin
+    await requireAdmin(req.user!.id);
 
     const { title, description, subject, gradeLevel, totalMarks, durationMinutes, instructions, status } = req.body;
 

@@ -2,6 +2,7 @@ import { ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { Button } from "./ui/button";
 import { useAuth } from "../contexts/AuthContext";
+import { useIsAdmin } from "../hooks/useIsAdmin";
 
 interface LayoutProps {
   children: ReactNode;
@@ -9,6 +10,7 @@ interface LayoutProps {
 
 export default function Layout({ children }: LayoutProps) {
   const { isAuthenticated, user, logout } = useAuth();
+  const isAdmin = useIsAdmin();
 
   const handleLogout = async () => {
     await logout();
@@ -29,11 +31,16 @@ export default function Layout({ children }: LayoutProps) {
               <Link to="/blog">
                 <Button variant="ghost">Blog</Button>
               </Link>
+              <Link to="/ai-evaluation">
+                <Button variant="ghost">AI Evaluation</Button>
+              </Link>
               {isAuthenticated && (
                 <>
-                  <Link to="/question-papers">
-                    <Button variant="ghost">Question Papers</Button>
-                  </Link>
+                  {isAdmin && (
+                    <Link to="/question-papers">
+                      <Button variant="ghost">Question Papers</Button>
+                    </Link>
+                  )}
                   <Link to="/answer-papers">
                     <Button variant="ghost">My Answers</Button>
                   </Link>

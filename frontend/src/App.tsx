@@ -6,6 +6,7 @@ import BlogPage from "./pages/BlogPage";
 import PostPage from "./pages/PostPage";
 import LoginPage from "./pages/LoginPage";
 import RegisterPage from "./pages/RegisterPage";
+import AILandingPage from "./pages/AILandingPage";
 import QuestionPapersPage from "./pages/QuestionPapersPage";
 import QuestionPaperFormPage from "./pages/QuestionPaperFormPage";
 import QuestionPaperDetailPage from "./pages/QuestionPaperDetailPage";
@@ -17,6 +18,7 @@ import PerformanceDashboardPage from "./pages/PerformanceDashboardPage";
 import QuestionPaperResultsPage from "./pages/QuestionPaperResultsPage";
 import Layout from "./components/Layout";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AdminRoute from "./components/AdminRoute";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,54 +40,55 @@ function App() {
               <Route path="/" element={<HomePage />} />
               <Route path="/blog" element={<BlogPage />} />
               <Route path="/blog/:slug" element={<PostPage />} />
+              <Route path="/ai-evaluation" element={<AILandingPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route
                 path="/question-papers"
                 element={
-                  <ProtectedRoute>
+                  <AdminRoute>
                     <QuestionPapersPage />
-                  </ProtectedRoute>
+                  </AdminRoute>
                 }
               />
               <Route
                 path="/question-papers/new"
                 element={
-                  <ProtectedRoute>
+                  <AdminRoute>
                     <QuestionPaperFormPage />
-                  </ProtectedRoute>
+                  </AdminRoute>
                 }
               />
               <Route
                 path="/question-papers/:id"
                 element={
-                  <ProtectedRoute>
+                  <AdminRoute>
                     <QuestionPaperDetailPage />
-                  </ProtectedRoute>
+                  </AdminRoute>
                 }
               />
               <Route
                 path="/question-papers/:id/edit"
                 element={
-                  <ProtectedRoute>
+                  <AdminRoute>
                     <QuestionPaperFormPage />
-                  </ProtectedRoute>
+                  </AdminRoute>
                 }
               />
               <Route
                 path="/question-papers/:paperId/questions/new"
                 element={
-                  <ProtectedRoute>
+                  <AdminRoute>
                     <QuestionFormPage />
-                  </ProtectedRoute>
+                  </AdminRoute>
                 }
               />
               <Route
                 path="/question-papers/:paperId/questions/:id/edit"
                 element={
-                  <ProtectedRoute>
+                  <AdminRoute>
                     <QuestionFormPage />
-                  </ProtectedRoute>
+                  </AdminRoute>
                 }
               />
               <Route

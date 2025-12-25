@@ -31,8 +31,11 @@ export default function HomePage() {
           Explore our resources, read our blog, and enhance your learning journey.
         </p>
         <div className="flex gap-4 justify-center">
+          <Link to="/ai-evaluation">
+            <Button size="lg">Try AI Evaluation</Button>
+          </Link>
           <Link to="/blog">
-            <Button size="lg">Explore Blog</Button>
+            <Button size="lg" variant="outline">Explore Blog</Button>
           </Link>
         </div>
       </section>
