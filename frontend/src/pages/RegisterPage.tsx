@@ -8,7 +8,6 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { PasswordStrengthIndicator } from '../components/PasswordStrengthIndicator';
-import Layout from '../components/Layout';
 
 const registerSchema = z.object({
   email: z.string().email('Invalid email address'),
@@ -74,80 +73,78 @@ export default function RegisterPage() {
   };
 
   return (
-    <Layout>
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/20 py-12 px-4">
-        <div className="w-full max-w-md space-y-8 p-8 bg-card rounded-lg shadow-lg border">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-muted/20 py-12 px-4">
+      <div className="w-full max-w-md space-y-8 p-8 bg-card rounded-lg shadow-lg border">
+        <div>
+          <h1 className="text-2xl font-bold text-center">Create Account</h1>
+          <p className="mt-2 text-center text-sm text-muted-foreground">
+            Sign up for a new account
+          </p>
+        </div>
+
+        {error && (
+          <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded" data-testid="error-message" role="alert">
+            {error}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div>
-            <h1 className="text-2xl font-bold text-center">Create Account</h1>
-            <p className="mt-2 text-center text-sm text-muted-foreground">
-              Sign up for a new account
-            </p>
+            <Label htmlFor="name">Name (Optional)</Label>
+            <Input
+              id="name"
+              type="text"
+              placeholder="John Doe"
+              {...register('name')}
+              error={errors.name?.message}
+            />
           </div>
 
-          {error && (
-            <div className="bg-destructive/10 border border-destructive text-destructive px-4 py-3 rounded" data-testid="error-message" role="alert">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div>
-              <Label htmlFor="name">Name (Optional)</Label>
-              <Input
-                id="name"
-                type="text"
-                placeholder="John Doe"
-                {...register('name')}
-                error={errors.name?.message}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="you@example.com"
-                {...register('email')}
-                error={errors.email?.message}
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="Enter your password"
-                {...register('password')}
-                error={errors.password?.message}
-              />
-              {passwordValue && (
-                <div className="mt-2">
-                  <PasswordStrengthIndicator password={passwordValue} />
-                </div>
-              )}
-              {!passwordValue && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Must be at least 8 characters with uppercase, lowercase, and number
-                </p>
-              )}
-            </div>
-
-            <Button type="submit" className="w-full" disabled={isSubmitting}>
-              {isSubmitting ? 'Creating account...' : 'Register'}
-            </Button>
-          </form>
-
-          <div className="text-center text-sm">
-            <span className="text-muted-foreground">Already have an account? </span>
-            <Link to="/login" className="text-primary hover:underline">
-              Login
-            </Link>
+          <div>
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              type="email"
+              placeholder="you@example.com"
+              {...register('email')}
+              error={errors.email?.message}
+            />
           </div>
+
+          <div>
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              placeholder="Enter your password"
+              {...register('password')}
+              error={errors.password?.message}
+            />
+            {passwordValue && (
+              <div className="mt-2">
+                <PasswordStrengthIndicator password={passwordValue} />
+              </div>
+            )}
+            {!passwordValue && (
+              <p className="mt-1 text-xs text-muted-foreground">
+                Must be at least 8 characters with uppercase, lowercase, and number
+              </p>
+            )}
+          </div>
+
+          <Button type="submit" className="w-full" disabled={isSubmitting}>
+            {isSubmitting ? 'Creating account...' : 'Register'}
+          </Button>
+        </form>
+
+        <div className="text-center text-sm">
+          <span className="text-muted-foreground">Already have an account? </span>
+          <Link to="/login" className="text-primary hover:underline">
+            Login
+          </Link>
         </div>
       </div>
-    </Layout>
+    </div>
   );
 }
 

@@ -23,6 +23,8 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
    * Uses accessToken from localStorage (if available) or tries to refresh
    */
   useEffect(() => {
+    let isMounted = true;
+    
     const checkAuth = async () => {
       try {
         // Try to get stored token from localStorage
@@ -30,66 +32,83 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         
         if (storedToken) {
           // Set token in state
-          setAccessToken(storedToken);
+          if (isMounted) {
+            setAccessToken(storedToken);
+          }
           
           // Try to get user info
           try {
             const response = await authApi.getMe();
-            setUser(response.data);
-          } catch (error) {
-            // Token might be expired, try to refresh
-            try {
-              const refreshResponse = await authApi.refreshToken();
-              if (refreshResponse.data?.accessToken) {
-                const newToken = refreshResponse.data.accessToken;
-                setAccessToken(newToken);
-                localStorage.setItem('accessToken', newToken);
-                
-                // Get user info with new token
-                const userResponse = await authApi.getMe();
-                setUser(userResponse.data);
-              } else {
+            if (isMounted) {
+              setUser(response.data);
+            }
+          } catch (error: any) {
+            // Token might be expired (401), try to refresh only if it's a 401
+            // Don't refresh on other errors (like 429 rate limit)
+            if (error.response?.status === 401) {
+              try {
+                const refreshResponse = await authApi.refreshToken();
+                if (refreshResponse.data?.accessToken && isMounted) {
+                  const newToken = refreshResponse.data.accessToken;
+                  setAccessToken(newToken);
+                  localStorage.setItem('accessToken', newToken);
+                  
+                  // Get user info with new token
+                  const userResponse = await authApi.getMe();
+                  if (isMounted) {
+                    setUser(userResponse.data);
+                  }
+                } else if (isMounted) {
+                  // Refresh failed, clear everything
+                  localStorage.removeItem('accessToken');
+                  setAccessToken(null);
+                  setUser(null);
+                }
+              } catch (refreshError) {
                 // Refresh failed, clear everything
+                if (isMounted) {
+                  localStorage.removeItem('accessToken');
+                  setAccessToken(null);
+                  setUser(null);
+                }
+              }
+            } else {
+              // Not a 401 error, don't try to refresh - just clear
+              if (isMounted) {
                 localStorage.removeItem('accessToken');
                 setAccessToken(null);
                 setUser(null);
               }
-            } catch (refreshError) {
-              // Refresh failed, clear everything
-              localStorage.removeItem('accessToken');
-              setAccessToken(null);
-              setUser(null);
             }
           }
         } else {
-          // No stored token, try to refresh using cookie
-          try {
-            const refreshResponse = await authApi.refreshToken();
-            if (refreshResponse.data?.accessToken) {
-              const newToken = refreshResponse.data.accessToken;
-              setAccessToken(newToken);
-              localStorage.setItem('accessToken', newToken);
-              
-              // Get user info with new token
-              const userResponse = await authApi.getMe();
-              setUser(userResponse.data);
-            }
-          } catch (error) {
-            // No valid refresh token, user is not authenticated
+          // No stored token - don't try to refresh (would cause rate limit)
+          // Just set loading to false and user to null
+          if (isMounted) {
             setUser(null);
+            setAccessToken(null);
           }
         }
       } catch (error) {
         // Any error means user is not authenticated
-        setUser(null);
-        setAccessToken(null);
-        localStorage.removeItem('accessToken');
+        if (isMounted) {
+          setUser(null);
+          setAccessToken(null);
+          localStorage.removeItem('accessToken');
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     };
 
     checkAuth();
+    
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const login = async (email: string, password: string) => {

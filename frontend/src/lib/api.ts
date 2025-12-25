@@ -30,12 +30,22 @@ api.interceptors.response.use(
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 
     // Handle 401 (unauthorized) - try to refresh token
+    // Don't refresh for auth endpoints or if already retried
     const isAuthEndpoint = originalRequest?.url?.includes('/auth/login') || 
                            originalRequest?.url?.includes('/auth/register') ||
-                           originalRequest?.url?.includes('/auth/me') ||
                            originalRequest?.url?.includes('/auth/refresh');
     
-    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
+    // Only refresh if:
+    // 1. It's a 401 error
+    // 2. Not already retried
+    // 3. Not an auth endpoint (login/register/refresh)
+    // 4. Not a 429 (rate limit) - don't retry on rate limits
+    if (
+      error.response?.status === 401 && 
+      !originalRequest._retry && 
+      !isAuthEndpoint &&
+      error.response?.status !== 429
+    ) {
       originalRequest._retry = true;
 
       try {
@@ -56,18 +66,21 @@ api.interceptors.response.use(
           }
           return api(originalRequest);
         }
-      } catch (refreshError) {
-        // Refresh failed - clear token and redirect to login
+      } catch (refreshError: any) {
+        // Refresh failed - clear token
         localStorage.removeItem('accessToken');
-        window.location.href = "/login";
+        // Only redirect if not already on login/register page
+        if (!window.location.pathname.includes('/login') && !window.location.pathname.includes('/register')) {
+          window.location.href = "/login";
+        }
         return Promise.reject(refreshError);
       }
     }
 
-    // For other errors, redirect to login if 401
-    if (error.response?.status === 401) {
-      localStorage.removeItem('accessToken');
-      window.location.href = "/login";
+    // For 401 errors on auth endpoints or after retry, don't redirect (let the page handle it)
+    // For 429 errors, don't redirect - just show the error
+    if (error.response?.status === 401 && !isAuthEndpoint && !originalRequest._retry) {
+      // This case is handled above
     }
 
     return Promise.reject(error);
