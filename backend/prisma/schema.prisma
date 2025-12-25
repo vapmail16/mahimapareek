@@ -1,0 +1,692 @@
+// Prisma Schema
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User model
+model User {
+  id        String   @id @default(uuid())
+  email     String   @unique
+  password  String
+  name      String?
+  role      Role     @default(USER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  sessions                Session[]
+  auditLogs               AuditLog[]
+  passwordResets          PasswordReset[]
+  notifications           Notification[]
+  notificationPreferences NotificationPreference?
+  payments                Payment[]
+  subscriptions           Subscription[]
+  dataExportRequests      DataExportRequest[]
+  dataDeletionRequests    DataDeletionRequest[]
+  consentRecords          ConsentRecord[]
+  // Blog relations
+  posts                   Post[]
+  // Question paper relations
+  questionPapers          QuestionPaper[]
+  // Answer paper relations
+  answerPapers            AnswerPaper[]
+  gradedAnswerPapers      AnswerPaper[] @relation("GradedBy")
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+// Session model (for refresh tokens)
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  userAgent String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+// Password Reset model
+model PasswordReset {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@index([expiresAt])
+  @@map("password_resets")
+}
+
+// Audit Log model (track all important actions)
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  action     String // e.g., "USER_LOGIN", "USER_CREATED", "PASSWORD_CHANGED"
+  resource   String? // e.g., "users", "payments"
+  resourceId String? // ID of affected resource
+  details    Json? // Additional details
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// Role enum
+enum Role {
+  USER
+  STUDENT
+  EDUCATOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+// Notification enums
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+}
+
+enum NotificationChannel {
+  EMAIL
+  IN_APP
+  SMS
+}
+
+enum NotificationStatus {
+  PENDING
+  SENT
+  FAILED
+  READ
+}
+
+// Notification model
+model Notification {
+  id        String              @id @default(uuid())
+  userId    String
+  type      NotificationType    @default(INFO)
+  channel   NotificationChannel @default(IN_APP)
+  status    NotificationStatus  @default(PENDING)
+  title     String
+  message   String
+  data      Json?
+  readAt    DateTime?
+  sentAt    DateTime?
+  createdAt DateTime            @default(now())
+  updatedAt DateTime            @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+  @@map("notifications")
+}
+
+// Notification Preference model
+model NotificationPreference {
+  id           String   @id @default(uuid())
+  userId       String   @unique
+  emailEnabled Boolean  @default(true)
+  inAppEnabled Boolean  @default(true)
+  smsEnabled   Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+// Payment Gateway Models
+
+// Payment enums
+enum PaymentProvider {
+  STRIPE
+  RAZORPAY
+  CASHFREE
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  CARD
+  UPI
+  NETBANKING
+  WALLET
+  EMI
+}
+
+enum Currency {
+  USD
+  INR
+  EUR
+  GBP
+}
+
+// Payment model - unified payment records
+model Payment {
+  id                String          @id @default(uuid())
+  userId            String
+  provider          PaymentProvider
+  providerPaymentId String?         @unique // External payment ID from provider
+  amount            Decimal         @db.Decimal(10, 2)
+  currency          Currency        @default(USD)
+  status            PaymentStatus   @default(PENDING)
+  paymentMethod     PaymentMethod?
+  description       String?
+  metadata          Json? // Additional provider-specific data
+  errorMessage      String?
+  errorCode         String?
+  refundedAmount    Decimal?        @db.Decimal(10, 2)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  capturedAt        DateTime?
+  refundedAt        DateTime?
+
+  // Relations
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  refunds     PaymentRefund[]
+  webhookLogs PaymentWebhookLog[]
+
+  @@index([userId])
+  @@index([provider])
+  @@index([status])
+  @@index([providerPaymentId])
+  @@index([createdAt])
+  @@map("payments")
+}
+
+// Payment Refund model
+model PaymentRefund {
+  id               String        @id @default(uuid())
+  paymentId        String
+  providerRefundId String?       @unique
+  amount           Decimal       @db.Decimal(10, 2)
+  reason           String?
+  status           PaymentStatus @default(PENDING)
+  metadata         Json?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+  processedAt      DateTime?
+
+  // Relations
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId])
+  @@index([status])
+  @@map("payment_refunds")
+}
+
+// Webhook Log model - track all webhook events
+model PaymentWebhookLog {
+  id           String          @id @default(uuid())
+  paymentId    String?
+  provider     PaymentProvider
+  eventType    String
+  eventId      String?         @unique
+  payload      Json
+  signature    String?
+  verified     Boolean         @default(false)
+  processed    Boolean         @default(false)
+  errorMessage String?
+  createdAt    DateTime        @default(now())
+  processedAt  DateTime?
+
+  // Relations
+  payment Payment? @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+
+  @@index([provider])
+  @@index([eventType])
+  @@index([processed])
+  @@index([createdAt])
+  @@map("payment_webhook_logs")
+}
+
+// Subscription model - for recurring payments
+model Subscription {
+  id                 String             @id @default(uuid())
+  userId             String
+  provider           PaymentProvider
+  providerSubId      String?            @unique
+  planId             String
+  planName           String
+  amount             Decimal            @db.Decimal(10, 2)
+  currency           Currency           @default(USD)
+  status             SubscriptionStatus @default(ACTIVE)
+  billingCycle       BillingCycle       @default(MONTHLY)
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean            @default(false)
+  cancelledAt        DateTime?
+  metadata           Json?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([provider])
+  @@index([status])
+  @@index([providerSubId])
+  @@map("subscriptions")
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+  EXPIRED
+  PAST_DUE
+}
+
+enum BillingCycle {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+// GDPR Compliance Models
+
+// Data Export Request model
+model DataExportRequest {
+  id           String           @id @default(uuid())
+  userId       String
+  status       DataExportStatus @default(PENDING)
+  requestedAt  DateTime         @default(now())
+  completedAt  DateTime?
+  expiresAt    DateTime? // Export link expiry
+  downloadUrl  String?
+  fileSize     Int? // In bytes
+  errorMessage String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([requestedAt])
+  @@map("data_export_requests")
+}
+
+enum DataExportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  EXPIRED
+}
+
+// Data Deletion Request model
+model DataDeletionRequest {
+  id                String             @id @default(uuid())
+  userId            String
+  status            DataDeletionStatus @default(PENDING)
+  deletionType      DeletionType       @default(SOFT)
+  requestedAt       DateTime           @default(now())
+  scheduledFor      DateTime? // Scheduled deletion date
+  completedAt       DateTime?
+  reason            String?
+  confirmedAt       DateTime? // User confirmation timestamp
+  confirmationToken String?            @unique
+  errorMessage      String? // Error details if failed
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([scheduledFor])
+  @@map("data_deletion_requests")
+}
+
+enum DataDeletionStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum DeletionType {
+  SOFT // Mark as deleted, keep data
+  HARD // Permanently delete data
+}
+
+// Consent Record model
+model ConsentRecord {
+  id          String      @id @default(uuid())
+  userId      String
+  consentType ConsentType
+  granted     Boolean     @default(false)
+  grantedAt   DateTime?
+  revokedAt   DateTime?
+  ipAddress   String?
+  userAgent   String?
+  version     String? // Consent version (for tracking changes)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, consentType])
+  @@index([userId])
+  @@index([consentType])
+  @@map("consent_records")
+}
+
+enum ConsentType {
+  MARKETING_EMAILS
+  ANALYTICS
+  THIRD_PARTY_SHARING
+  COOKIES
+  TERMS_OF_SERVICE
+  PRIVACY_POLICY
+}
+
+// ============================================
+// Blog/Content Management Models
+// ============================================
+
+// Category model
+model Category {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  posts Post[]
+
+  @@index([slug])
+  @@map("categories")
+}
+
+// Post model (Blog posts)
+model Post {
+  id          String      @id @default(uuid())
+  title       String
+  slug        String      @unique
+  content     String      @db.Text
+  excerpt     String?     @db.Text
+  authorId    String
+  categoryId  String?
+  status      PostStatus  @default(DRAFT)
+  publishedAt DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  // Relations
+  author   User      @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  @@index([authorId])
+  @@index([categoryId])
+  @@index([status])
+  @@index([slug])
+  @@index([publishedAt])
+  @@map("posts")
+}
+
+enum PostStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+// ============================================
+// Question Paper System Models
+// ============================================
+
+// Question Paper model
+model QuestionPaper {
+  id            String              @id @default(uuid())
+  title         String
+  description   String?             @db.Text
+  educatorId    String
+  subject       String?
+  gradeLevel    String?
+  totalMarks    Int
+  durationMinutes Int?
+  instructions  String?             @db.Text
+  status        QuestionPaperStatus  @default(DRAFT)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  // Relations
+  educator User       @relation(fields: [educatorId], references: [id], onDelete: Cascade)
+  questions Question[]
+  answerPapers AnswerPaper[]
+
+  @@index([educatorId])
+  @@index([status])
+  @@index([subject])
+  @@map("question_papers")
+}
+
+enum QuestionPaperStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+// Question model
+model Question {
+  id              String        @id @default(uuid())
+  questionPaperId String
+  questionNumber  Int
+  questionText    String        @db.Text
+  questionType    QuestionType
+  marks           Int
+  correctAnswer   String?       @db.Text // For MCQ and short answers
+  answerKeywords  String[]      // Keywords for automated checking
+  modelAnswer     String?       @db.Text // For long answers/essays
+  options         Json?         // For MCQ: [{"id": 1, "text": "Option A"}, ...]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  questionPaper QuestionPaper @relation(fields: [questionPaperId], references: [id], onDelete: Cascade)
+  questionAnswers QuestionAnswer[]
+
+  @@unique([questionPaperId, questionNumber])
+  @@index([questionPaperId])
+  @@map("questions")
+}
+
+enum QuestionType {
+  MCQ
+  SHORT_ANSWER
+  LONG_ANSWER
+  ESSAY
+}
+
+// ============================================
+// Answer Paper System Models
+// ============================================
+
+// Answer Paper model (student submissions)
+model AnswerPaper {
+  id                String            @id @default(uuid())
+  questionPaperId   String
+  studentId         String
+  submittedAt       DateTime         @default(now())
+  status            AnswerPaperStatus @default(SUBMITTED)
+  totalMarksObtained Decimal?         @db.Decimal(10, 2)
+  percentage        Decimal?          @db.Decimal(5, 2)
+  grade             String?          // A+, A, B+, B, C+, C, D, F
+  feedback          String?           @db.Text
+  gradedAt          DateTime?
+  gradedBy          String?           // Educator/admin who graded
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  // Relations
+  questionPaper QuestionPaper @relation(fields: [questionPaperId], references: [id], onDelete: Cascade)
+  student       User          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  grader        User?         @relation("GradedBy", fields: [gradedBy], references: [id], onDelete: SetNull)
+  answerFiles   AnswerFile[]
+  questionAnswers QuestionAnswer[]
+  aiGradingResults AIGradingResult[]
+  manualReviews ManualReview[]
+
+  @@index([studentId])
+  @@index([questionPaperId])
+  @@index([status])
+  @@index([submittedAt])
+  @@map("answer_papers")
+}
+
+enum AnswerPaperStatus {
+  SUBMITTED
+  GRADING
+  GRADED
+  REVIEWED
+}
+
+// Answer File model (uploaded documents)
+model AnswerFile {
+  id            String      @id @default(uuid())
+  answerPaperId String
+  fileName      String
+  filePath      String
+  fileType      String      // PDF, IMAGE, TEXT
+  fileSize      Int         // In bytes
+  uploadedAt    DateTime    @default(now())
+
+  // Relations
+  answerPaper AnswerPaper @relation(fields: [answerPaperId], references: [id], onDelete: Cascade)
+
+  @@index([answerPaperId])
+  @@map("answer_files")
+}
+
+// Question Answer model (individual question answers)
+model QuestionAnswer {
+  id                String      @id @default(uuid())
+  answerPaperId     String
+  questionId        String
+  answerText        String?     @db.Text
+  marksObtained     Decimal?    @db.Decimal(10, 2)
+  feedback          String?     @db.Text
+  isCorrect         Boolean?    // For MCQ/short answers
+  similarityScore   Decimal?    @db.Decimal(5, 2) // For long answers (0-100)
+  gradedAt          DateTime?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  // Relations
+  answerPaper AnswerPaper @relation(fields: [answerPaperId], references: [id], onDelete: Cascade)
+  question    Question    @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  aiGradingResults AIGradingResult[]
+  manualReviews ManualReview[]
+
+  @@unique([answerPaperId, questionId])
+  @@index([answerPaperId])
+  @@index([questionId])
+  @@map("question_answers")
+}
+
+// ============================================
+// AI Grading & Review Models
+// ============================================
+
+// AI Grading Result model (audit trail)
+model AIGradingResult {
+  id                String      @id @default(uuid())
+  answerPaperId     String?
+  questionAnswerId  String?
+  modelUsed         String      // e.g., "gpt-4", "local-llm"
+  promptUsed        String?     @db.Text
+  responseReceived  String?     @db.Text
+  confidenceScore   Decimal?    @db.Decimal(5, 2)
+  processingTimeMs  Int?
+  createdAt         DateTime    @default(now())
+
+  // Relations
+  answerPaper    AnswerPaper?    @relation(fields: [answerPaperId], references: [id], onDelete: Cascade)
+  questionAnswer QuestionAnswer? @relation(fields: [questionAnswerId], references: [id], onDelete: Cascade)
+
+  @@index([answerPaperId])
+  @@index([questionAnswerId])
+  @@index([modelUsed])
+  @@map("ai_grading_results")
+}
+
+// Manual Review model (for complex answers)
+model ManualReview {
+  id              String            @id @default(uuid())
+  answerPaperId   String?
+  questionAnswerId String?
+  assignedTo      String            // Educator
+  priority        ReviewPriority    @default(MEDIUM)
+  status          ReviewStatus      @default(PENDING)
+  reviewNotes     String?           @db.Text
+  createdAt       DateTime          @default(now())
+  completedAt     DateTime?
+
+  // Relations
+  answerPaper    AnswerPaper?    @relation(fields: [answerPaperId], references: [id], onDelete: Cascade)
+  questionAnswer QuestionAnswer? @relation(fields: [questionAnswerId], references: [id], onDelete: Cascade)
+
+  @@index([answerPaperId])
+  @@index([questionAnswerId])
+  @@index([assignedTo])
+  @@index([status])
+  @@map("manual_reviews")
+}
+
+enum ReviewPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ReviewStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
