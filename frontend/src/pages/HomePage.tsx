@@ -16,6 +16,13 @@ export default function HomePage() {
     <div className="container mx-auto px-4 py-12">
       {/* Hero Section */}
       <section className="text-center mb-16">
+        <div className="mb-8 flex justify-center">
+          <img 
+            src="/hero-image.png" 
+            alt="Mahima Pareek" 
+            className="max-w-full h-auto max-h-96 rounded-lg shadow-lg"
+          />
+        </div>
         <h1 className="text-5xl font-bold mb-4 bg-gradient-to-r from-primary to-primary-light bg-clip-text text-transparent">
           Welcome to Mahima Pareek
         </h1>
